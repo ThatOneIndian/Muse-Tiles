@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
-function ConfigPanel({ initialConfig, onStart, videoRef }) {
+function ConfigPanel({ initialConfig, onStart, mediaStream }) {
   const [config, setConfig] = useState(initialConfig);
+  const localVideoRef = useRef(null);
+
+  useEffect(() => {
+    if (localVideoRef.current && mediaStream) {
+      localVideoRef.current.srcObject = mediaStream;
+    }
+  }, [mediaStream]);
 
   const updateConfig = (key, value) => {
     setConfig(prev => ({ ...prev, [key]: value }));
@@ -36,7 +43,7 @@ function ConfigPanel({ initialConfig, onStart, videoRef }) {
         }}>
           {/* We mirror the video source from the App.jsx here to avoid requesting permissions twice */}
           <video 
-            ref={videoRef} 
+            ref={localVideoRef} 
             autoPlay 
             playsInline 
             muted 

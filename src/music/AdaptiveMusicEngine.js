@@ -8,22 +8,39 @@ export class AdaptiveMusicEngine {
     this.targetBPM = null;
     
     // Master volume node
-    this.gainNode = new Tone.Volume(0).toDestination();
+    this.gainNode = new Tone.Volume(-10).toDestination();
     this.isInitialized = false;
+
+    // SFX Only
+    this.sfxSynth = null;
   }
 
   async initialize() {
     if (this.isInitialized) return;
     await Tone.start();
+
+    // Hit sound effect poly synth
+    this.sfxSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+    this.sfxSynth.volume.value = -5;
+
+    Tone.Transport.start();
+
     this.isInitialized = true;
-    console.log("Tone.js initialized");
+    console.log("Tone.js initialized (No fallbacks allowed)");
+  }
+
+  playHitSFX(rating) {
+    if (!this.isInitialized || rating === 'miss') return;
+    if (rating === 'perfect') this.sfxSynth.triggerAttackRelease("C5", "16n");
+    else if (rating === 'great') this.sfxSynth.triggerAttackRelease("A4", "16n");
+    else if (rating === 'good') this.sfxSynth.triggerAttackRelease("F4", "16n");
   }
 
   // Load a generated track buffer and assign it a base BPM
-  async loadTrack(bpm, arrayBuffer) {
+  async loadTrack(bpm, urlOrBuffer) {
     return new Promise((resolve) => {
       const player = new Tone.Player({
-        url: arrayBuffer,
+        url: urlOrBuffer,
         loop: true,
         autostart: false,
         onload: () => {
@@ -35,8 +52,12 @@ export class AdaptiveMusicEngine {
   }
 
   playTrack(bpm) {
+    Tone.Transport.bpm.value = bpm;
     const bufferData = this.findNearestTrack(bpm);
-    if (!bufferData) return;
+    if (!bufferData) {
+      console.error("CRITICAL: No true Lyria track loaded. Refusing to play fallback.");
+      return;
+    }
     
     const { baseBPM, player } = bufferData;
 
@@ -91,8 +112,15 @@ export class AdaptiveMusicEngine {
     
     if (diff < 3) return;  // close enough, don't adjust
     
+    Tone.Transport.bpm.rampTo(userBPM, 1);
+    
     // Can we handle it with playbackRate alone?
     const nearest = this.findNearestTrack(userBPM);
+    if (!nearest) {
+      this.currentBPM = userBPM;
+      return;
+    }
+
     const neededRate = userBPM / nearest.baseBPM;
     
     if (neededRate > 0.85 && neededRate < 1.15) {
