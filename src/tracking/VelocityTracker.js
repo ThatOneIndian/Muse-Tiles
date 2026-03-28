@@ -5,7 +5,7 @@
  * Uses an exponentially weighted moving average (EWMA) for noise reduction.
  */
 export class VelocityTracker {
-  constructor(maxHistory = 6) {
+  constructor(maxHistory = 4) {
     this.history = [];
     this.maxHistory = maxHistory;
     this.currentVelocity = 0;

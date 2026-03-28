@@ -51,8 +51,11 @@ export class DribbleDetector {
     this.rightCount = 0;
     this.dominantHand = null;
 
-    this.leftPeakV = 0;
-    this.rightPeakV = 0;
+    // Track whether we've already fired for the current downward motion
+    this.leftFired = false;
+    this.rightFired = false;
+    this.leftFiredTime = 0;
+    this.rightFiredTime = 0;
   }
 
   processFrame(landmarks, timestamp) {
@@ -86,8 +89,14 @@ export class DribbleDetector {
     result.leftVelocity = leftV;
     result.rightVelocity = rightV;
 
-    if (leftV > 0) this.leftPeakV = Math.max(this.leftPeakV, leftV);
-    if (rightV > 0) this.rightPeakV = Math.max(this.rightPeakV, rightV);
+    const thresh = DETECTION_CONFIG.MIN_VELOCITY_THRESHOLD;
+    const cooldown = DETECTION_CONFIG.COOLDOWN_MS;
+
+    // Reset fired flag only when velocity has been non-positive AND enough
+    // time has passed since firing — prevents noise from resetting too early
+    const minFiredHold = cooldown * 0.75;
+    if (leftV <= 0 && (timestamp - this.leftFiredTime) > minFiredHold) this.leftFired = false;
+    if (rightV <= 0 && (timestamp - this.rightFiredTime) > minFiredHold) this.rightFired = false;
 
     let dribbleDetected = false;
     let dribbleHand = null;
@@ -95,31 +104,30 @@ export class DribbleDetector {
     let dribbleScreenX = 0;
     let dribbleScreenY = 0;
 
-    // Zero-crossing check: was moving down (positive V), now stopped or moving up (non-positive V)
-    const thresh = DETECTION_CONFIG.MIN_VELOCITY_THRESHOLD;
-    const cooldown = DETECTION_CONFIG.COOLDOWN_MS;
-
-    if (leftPoint && this.prevLeftV > thresh && leftV <= 0) {
+    // Peak-velocity detection: fire when downward velocity is above threshold
+    // AND has started decreasing (prevV was higher) — this is the impact moment,
+    // not the zero-crossing which lags by 2-4 frames.
+    if (leftPoint && !this.leftFired && leftV > thresh && this.prevLeftV > leftV) {
       if (timestamp - this.lastDribbleTime >= cooldown) {
-        if (this.leftPeakV > thresh) {
-          dribbleDetected = true;
-          dribbleHand = 'left';
-          dribbleIntensity = Math.min(1, this.leftPeakV / 0.002);
-          dribbleScreenX = leftPoint.rawX;
-          dribbleScreenY = leftPoint.rawY;
-        }
+        dribbleDetected = true;
+        dribbleHand = 'left';
+        dribbleIntensity = Math.min(1, leftV / 0.002);
+        dribbleScreenX = leftPoint.rawX;
+        dribbleScreenY = leftPoint.rawY;
+        this.leftFired = true;
+        this.leftFiredTime = timestamp;
       }
     }
 
-    if (!dribbleDetected && rightPoint && this.prevRightV > thresh && rightV <= 0) {
+    if (!dribbleDetected && rightPoint && !this.rightFired && rightV > thresh && this.prevRightV > rightV) {
       if (timestamp - this.lastDribbleTime >= cooldown) {
-        if (this.rightPeakV > thresh) {
-          dribbleDetected = true;
-          dribbleHand = 'right';
-          dribbleIntensity = Math.min(1, this.rightPeakV / 0.002);
-          dribbleScreenX = rightPoint.rawX;
-          dribbleScreenY = rightPoint.rawY;
-        }
+        dribbleDetected = true;
+        dribbleHand = 'right';
+        dribbleIntensity = Math.min(1, rightV / 0.002);
+        dribbleScreenX = rightPoint.rawX;
+        dribbleScreenY = rightPoint.rawY;
+        this.rightFired = true;
+        this.rightFiredTime = timestamp;
       }
     }
 
@@ -131,9 +139,6 @@ export class DribbleDetector {
       if (this.leftCount + this.rightCount >= 8) {
         this.dominantHand = this.leftCount > this.rightCount ? 'left' : 'right';
       }
-
-      this.leftPeakV = 0;
-      this.rightPeakV = 0;
 
       result.detected = true;
       result.hand = dribbleHand;
@@ -155,8 +160,10 @@ export class DribbleDetector {
     this.prevLeftV = 0;
     this.prevRightV = 0;
     this.lastDribbleTime = 0;
-    this.leftPeakV = 0;
-    this.rightPeakV = 0;
+    this.leftFired = false;
+    this.rightFired = false;
+    this.leftFiredTime = 0;
+    this.rightFiredTime = 0;
     this.leftCount = 0;
     this.rightCount = 0;
     this.dominantHand = null;

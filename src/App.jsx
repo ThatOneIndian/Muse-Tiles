@@ -14,6 +14,7 @@ import { SensorFusion } from './tracking/SensorFusion';
 import { TrackGenerator } from './music/TrackGenerator';
 import { GeminiLiveClassifier } from './ai/GeminiLiveClassifier';
 import { FeedbackManager } from './feedback/FeedbackManager';
+import { DIFFICULTY } from './utils/constants';
 import * as Tone from 'tone';
 import './index.css';
 
@@ -25,7 +26,8 @@ function App() {
     tempo_range: { min: 90, max: 130 },
     mood: 'upbeat',
     instruments: ['drums', 'bass'],
-    duration_seconds: 90
+    duration_seconds: 90,
+    difficulty: 'normal'
   });
 
   const [stats, setStats] = useState({ score: 0, bpm: 0, combo: 0, maxCombo: 0, rating: null, energy: 5, meter: 50 });
@@ -117,13 +119,22 @@ function App() {
 
     const scorerStats = engines.beatScorer.getStats();
     const accuracy = parseFloat(scorerStats.accuracy) || 0;
+    const total = scorerStats.totalDribbles || 1;
+    const { perfect } = scorerStats.hitCounts;
 
+    // Weighted grade: 50% accuracy, 25% perfect ratio, 25% combo factor
+    const perfectRatio = (perfect / total) * 100;
+    const comboFactor = Math.min(100, (scorerStats.maxCombo / total) * 100);
+    const gradeScore = accuracy * 0.5 + perfectRatio * 0.25 + comboFactor * 0.25;
+
+    const d = DIFFICULTY[config.difficulty] || DIFFICULTY.normal;
+    const t = d.gradeThresholds;
     let grade, gradeColor;
-    if (accuracy >= 90 && scorerStats.maxCombo >= 20) { grade = 'S'; gradeColor = '#FFD700'; }
-    else if (accuracy >= 80) { grade = 'A'; gradeColor = '#00FFCC'; }
-    else if (accuracy >= 65) { grade = 'B'; gradeColor = '#00BFFF'; }
-    else if (accuracy >= 50) { grade = 'C'; gradeColor = '#FFA500'; }
-    else if (accuracy >= 30) { grade = 'D'; gradeColor = '#FF6347'; }
+    if (gradeScore >= t.S) { grade = 'S'; gradeColor = '#FFD700'; }
+    else if (gradeScore >= t.A) { grade = 'A'; gradeColor = '#00FFCC'; }
+    else if (gradeScore >= t.B) { grade = 'B'; gradeColor = '#00BFFF'; }
+    else if (gradeScore >= t.C) { grade = 'C'; gradeColor = '#FFA500'; }
+    else if (gradeScore >= t.D) { grade = 'D'; gradeColor = '#FF6347'; }
     else { grade = 'F'; gradeColor = '#FF4444'; }
 
     setFinalResults({ ...scorerStats, grade, gradeColor, duration: config.duration_seconds });
@@ -165,6 +176,7 @@ function App() {
       await engines.geminiLive.connect();
 
       engines.beatScorer.reset();
+      engines.beatScorer.setDifficulty(newConfig.difficulty || 'normal');
       engines.audioDetector.init(mediaStream);
 
       if (!newConfig.testMode) {

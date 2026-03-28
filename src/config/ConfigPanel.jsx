@@ -139,6 +139,33 @@ function ConfigPanel({ initialConfig, onStart, mediaStream }) {
           </div>
         </div>
 
+        {/* Difficulty */}
+        <div>
+          <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.5rem', fontWeight: 600 }}>DIFFICULTY</label>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {[
+              { key: 'easy', label: 'Easy', desc: 'Relaxed timing' },
+              { key: 'normal', label: 'Normal', desc: 'Balanced' },
+              { key: 'hard', label: 'Hard', desc: 'Tight windows' }
+            ].map(d => (
+              <button
+                key={d.key}
+                onClick={() => updateConfig('difficulty', d.key)}
+                style={{
+                  background: config.difficulty === d.key ? 'var(--accent-color)' : 'transparent',
+                  color: config.difficulty === d.key ? '#000' : '#fff',
+                  border: `1px solid ${config.difficulty === d.key ? 'var(--accent-color)' : 'var(--panel-border)'}`,
+                  padding: '6px 16px', borderRadius: '20px', cursor: 'pointer', fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+                title={d.desc}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Duration */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
