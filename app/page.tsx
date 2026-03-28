@@ -7,17 +7,15 @@ import { Music, Activity, Disc, Zap, Headphones, Mic, Send } from 'lucide-react'
 import styles from './page.module.css';
 
 export default function Home() {
-  const { parameters, isLoaded } = useMuseSession();
+  const { parameters, updateParameter, isLoaded } = useMuseSession();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([
     { role: 'ai', content: "Hey there! Let's get started. What kind of vibe are you aiming for today?" }
   ]);
   const [isSending, setIsSending] = useState(false);
+  const [activeParameter, setActiveParameter] = useState('mood');
 
   if (!isLoaded) return null; // Wait for Mount
-
-  // This active query will later be managed by Gemini's state context
-  const activeParameter: string = 'mood';
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -28,12 +26,41 @@ export default function Home() {
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsSending(true);
 
-    // TODO: Connect to app/api/chat/route.ts (Developer A)
-    // For now, just a mock response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'ai', content: "Got it! That sounds interesting. I'm updating your project dashboard now." }]);
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [...messages, { role: 'user', content: userMsg }],
+          currentParameters: parameters
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.error) throw new Error(data.error);
+
+      // Update Chat
+      setMessages(prev => [...prev, { role: 'ai', content: data.message }]);
+      
+      // Update Grid State
+      if (data.track_parameters) {
+        // We iterate through keys and update if value exists
+        Object.entries(data.track_parameters).forEach(([key, value]) => {
+          if (value) updateParameter(key as any, value);
+        });
+      }
+
+      if (data.active_parameter) {
+        setActiveParameter(data.active_parameter);
+      }
+
+    } catch (err: any) {
+      console.error('Chat Error:', err);
+      setMessages(prev => [...prev, { role: 'ai', content: "Sorry, I hit a snag. Is your Gemini API Key set up?" }]);
+    } finally {
       setIsSending(false);
-    }, 1000);
+    }
   };
 
   return (
