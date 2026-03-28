@@ -26,9 +26,11 @@ function App() {
   const [combo, setCombo] = useState(0);
   const [generatingStatus, setGeneratingStatus] = useState('Initializing AI...');
   const [mediaStream, setMediaStream] = useState(null);
+  const [simActive, setSimActive] = useState(false);
   
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null); // Persistent stream — survives state transitions
   
   // Persistence for Engines
   const poseTracker = useRef(new PoseTracker());
@@ -40,32 +42,37 @@ function App() {
   const skeletonRenderer = useRef(null);
   const requestRef = useRef();
   
-  // Setup webcam preview
+  // Request camera ONCE on mount — never stop it between state changes
   useEffect(() => {
-    let stream = null;
     async function setupCamera() {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: 1280, height: 720 },
-          audio: false // audio not needed for tracking
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: 1280, height: 720, facingMode: 'user' },
+          audio: false
         });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        streamRef.current = stream;
         setMediaStream(stream);
+        console.log('[Camera] stream acquired');
       } catch (err) {
-        console.error("Failed to access camera:", err);
+        console.error('Failed to access camera:', err);
       }
     }
     setupCamera();
-    
-    // Cleanup stream on unmount
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
       }
     };
-  }, [appState]); // Re-attach when state changes as video element might remount
+  }, []); // Empty deps = run once only
+
+  // Re-attach stream to whichever video element is currently in the DOM
+  useEffect(() => {
+    if (streamRef.current && videoRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+      console.log(`[Camera] reattached to videoRef (state: ${appState})`);
+    }
+  }, [appState, mediaStream]); // Fires whenever state or stream changes
 
   const handleStart = async (newConfig) => {
     setConfig(newConfig);
@@ -174,16 +181,30 @@ function App() {
 
   const handleQuit = () => {
     musicEngine.current.stopAll();
+    ballTracker.current.setSimMode(false);
+    setSimActive(false);
     setAppState('config');
     setScore(0);
     setLiveBpm('--');
     setCombo(0);
   };
 
+  const handleToggleSim = () => {
+    const next = !simActive;
+    setSimActive(next);
+    ballTracker.current.setSimMode(next);
+  };
+
   return (
     <div className="app-container" style={{ width: '100%', height: '100%', padding: '2rem', boxSizing: 'border-box' }}>
-      
-      {/* Background glow effects */}
+      {/* Always-mounted hidden video — videoRef stays stable across all state changes */}
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        style={{ position: 'fixed', width: 1, height: 1, opacity: 0, pointerEvents: 'none', top: 0, left: 0 }}
+      />
       <div style={{
         position: 'absolute', top: '-10%', left: '-10%', width: '40vw', height: '40vw',
         background: 'radial-gradient(circle, rgba(0,255,204,0.1) 0%, rgba(0,0,0,0) 70%)',
@@ -221,11 +242,6 @@ function App() {
         </div>
       )}
 
-      {(appState === 'active' || appState === 'countdown' || appState === 'generating') && (
-        <div style={{ position: 'fixed', bottom: 20, right: 20, zIndex: -1, opacity: 0.1 }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ borderRadius: '16px', border: '2px solid #fff' }}></video>
-        </div>
-      )}
 
       {appState === 'active' && (
         <div className="active-session" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -259,10 +275,22 @@ function App() {
                 <h3 style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Combo</h3>
                 <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>{combo || '--'}</div>
              </div>
+              <button
+                onClick={handleToggleSim}
+                style={{
+                  padding: '0.5rem 1.2rem',
+                  background: simActive ? 'rgba(255,165,0,0.2)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${simActive ? '#FFA500' : 'rgba(255,255,255,0.2)'}`,
+                  color: simActive ? '#FFA500' : '#888',
+                  borderRadius: '8px', cursor: 'pointer', fontWeight: 700,
+                  fontSize: '0.75rem', textTransform: 'uppercase',
+                  boxShadow: simActive ? '0 0 14px rgba(255,165,0,0.5)' : 'none',
+                  transition: 'all 0.2s'
+                }}
+              >{simActive ? '🏀 SIM ON' : '🏀 SIM'}</button>
           </header>
 
           <div style={{ flex: 1, position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-            <video ref={videoRef} autoPlay playsInline muted style={{ display: 'none' }}></video>
             <canvas ref={canvasRef} width={1280} height={720} style={{
               width: '100%', maxHeight: '60vh', objectFit: 'contain',
               borderRadius: '16px', border: '1px solid var(--panel-border)'
