@@ -26,10 +26,10 @@ export const LANDMARKS = {
  */
 export const DETECTION_CONFIG = {
   // Normalized Y per millisecond
-  MIN_VELOCITY_THRESHOLD: 0.00025,
+  MIN_VELOCITY_THRESHOLD: 0.0004,
 
   // Cooldown between dribbles (Prevents double triggers)
-  COOLDOWN_MS: 140,
+  COOLDOWN_MS: 200,
 
   // Audio detection sensitivity (3x noise floor)
   AUDIO_THRESHOLD_MULTIPLIER: 3,
@@ -37,4 +37,31 @@ export const DETECTION_CONFIG = {
 
   // Logic Synchronization (how long to wait for sensor pairing)
   MAX_SYNC_WINDOW_MS: 80,
+};
+
+/**
+ * Difficulty presets — affect scoring windows and grade thresholds
+ */
+export const DIFFICULTY = {
+  easy: {
+    label: 'Easy',
+    perfectMs: 80,
+    greatMs: 160,
+    goodMs: 250,
+    gradeThresholds: { S: 75, A: 60, B: 45, C: 30, D: 15 },
+  },
+  normal: {
+    label: 'Normal',
+    perfectMs: 60,
+    greatMs: 120,
+    goodMs: 200,
+    gradeThresholds: { S: 80, A: 65, B: 50, C: 35, D: 20 },
+  },
+  hard: {
+    label: 'Hard',
+    perfectMs: 40,
+    greatMs: 90,
+    goodMs: 150,
+    gradeThresholds: { S: 88, A: 72, B: 58, C: 42, D: 28 },
+  },
 };

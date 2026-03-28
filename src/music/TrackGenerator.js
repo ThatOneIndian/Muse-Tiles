@@ -44,17 +44,18 @@ export class TrackGenerator {
       `Keep strict rhythmic consistency with clear transient attacks. Make it loopable.`;
   }
 
-  async generateTrack(bpm, config) {
+  async generateTrack(bpm, config, _retryCount = 0) {
+    const maxRetries = 2;
     const prompt = this.buildLyriaPrompt(config, bpm);
-    console.info(`[Lyria] Starting generation for ${config.genre} @ ${bpm} BPM...`);
-    
+    console.info(`[Lyria] Starting generation for ${config.genre} @ ${bpm} BPM (attempt ${_retryCount + 1}/${maxRetries + 1})...`);
+
     if (!this.apiKey) {
        throw new Error("No API key provided. Cannot generate Lyria audio.");
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 50000); // 50s timeout
-    
+    const timeoutId = setTimeout(() => controller.abort(), 50000);
+
     try {
       const requestBody = {
         contents: [{
@@ -79,30 +80,52 @@ export class TrackGenerator {
       if (!response.ok) {
         const errText = await response.text();
         console.error(`[Lyria] API Error ${response.status}:`, errText);
+
+        // Retry on 500/503 server errors
+        if (_retryCount < maxRetries && response.status >= 500) {
+          console.warn(`[Lyria] Server error, retrying in 2s...`);
+          await new Promise(r => setTimeout(r, 2000));
+          return this.generateTrack(bpm, config, _retryCount + 1);
+        }
         throw new Error(`Lyria API rejected the request (${response.status}): ${errText}`);
       }
 
       console.info("[Lyria] Response received. Parsing JSON payload...");
       const data = await response.json();
-      
+
       const parts = data?.candidates?.[0]?.content?.parts || [];
       const audioPart = parts.find(p => p.inlineData && p.inlineData.mimeType.startsWith('audio/'));
-      
+
       if (!audioPart) {
-          console.warn("[Lyria] No audio binary found in response parts.", parts);
-          throw new Error("Lyria returned a successful response, but it contained no Audio binary. Check prompt/safety filters.");
+        console.warn("[Lyria] No audio binary found in response parts.", parts);
+
+        // Retry — the model sometimes returns text instead of audio
+        if (_retryCount < maxRetries) {
+          console.warn(`[Lyria] No audio in response, retrying (${_retryCount + 1}/${maxRetries})...`);
+          await new Promise(r => setTimeout(r, 1500));
+          return this.generateTrack(bpm, config, _retryCount + 1);
+        }
+        throw new Error("Lyria failed to return audio after multiple attempts. Try a different genre or mood.");
       }
 
       console.info(`[Lyria] Successfully extracted ${audioPart.inlineData.mimeType} binary data.`);
       return this._createBlobUrlFromBase64(audioPart.inlineData.data, audioPart.inlineData.mimeType);
-      
+
     } catch (e) {
       clearTimeout(timeoutId);
       if (e.name === 'AbortError') {
         console.error("[Lyria] Request timed out after 50 seconds.");
-        throw new Error("Lyria API timed out. The server might be overloaded. Try again in a moment.");
+        if (_retryCount < maxRetries) {
+          console.warn(`[Lyria] Timeout, retrying...`);
+          return this.generateTrack(bpm, config, _retryCount + 1);
+        }
+        throw new Error("Lyria API timed out after multiple attempts. The server might be overloaded.");
       }
-      console.error("[Lyria] Generation failed entirely:", e);
+      // Don't re-wrap errors that are already our retry-exhausted messages
+      if (_retryCount >= maxRetries || e.message.includes('after multiple attempts')) {
+        throw e;
+      }
+      console.error("[Lyria] Generation failed:", e);
       throw e;
     }
   }

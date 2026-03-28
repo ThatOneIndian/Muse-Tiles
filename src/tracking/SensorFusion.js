@@ -5,6 +5,7 @@ export class SensorFusion {
     this.maxWindow = DETECTION_CONFIG.MAX_SYNC_WINDOW_MS;
     this.pendingVisual = null;
     this.pendingAudio = null;
+    this.lastEmitTime = 0;
   }
 
   process(visualResult, audioResult, timestamp) {
@@ -15,10 +16,18 @@ export class SensorFusion {
       this.pendingAudio = { ...audioResult, arrivalTime: timestamp };
     }
 
+    // Suppress any event that arrives too soon after the last emit
+    const cooldown = DETECTION_CONFIG.COOLDOWN_MS;
+
     // Try fusion first — if both sensors fired within the window, emit immediately
     if (this.pendingVisual && this.pendingAudio) {
       const timeDiff = Math.abs(this.pendingVisual.timestamp - this.pendingAudio.timestamp);
       if (timeDiff <= this.maxWindow) {
+        if (timestamp - this.lastEmitTime < cooldown) {
+          this.pendingVisual = null;
+          this.pendingAudio = null;
+          return { detected: false };
+        }
         const result = {
           detected: true,
           confidence: 0.95,
@@ -31,35 +40,45 @@ export class SensorFusion {
         };
         this.pendingVisual = null;
         this.pendingAudio = null;
+        this.lastEmitTime = timestamp;
         return result;
       }
     }
 
-    // Visual-only: emit immediately — visual detection has its own zero-crossing
-    // logic so it's already well-timed. Waiting adds unnecessary latency.
+    // Visual-only: emit immediately — peak-velocity detection is already
+    // well-timed to the impact moment.
     if (this.pendingVisual && !audioResult.detected) {
-      const age = timestamp - this.pendingVisual.arrivalTime;
-      // Give audio 1 frame (~16ms) to catch up, then emit
-      if (age >= 16) {
-        const result = {
-          detected: true,
-          confidence: 0.7,
-          timestamp: this.pendingVisual.timestamp,
-          source: 'visual',
-          hand: this.pendingVisual.hand,
-          intensity: this.pendingVisual.intensity,
-          wristScreenX: this.pendingVisual.wristScreenX,
-          wristScreenY: this.pendingVisual.wristScreenY
-        };
+      if (timestamp - this.lastEmitTime < cooldown) {
         this.pendingVisual = null;
-        return result;
+        return { detected: false };
       }
+      const result = {
+        detected: true,
+        confidence: 0.7,
+        timestamp: this.pendingVisual.timestamp,
+        source: 'visual',
+        hand: this.pendingVisual.hand,
+        intensity: this.pendingVisual.intensity,
+        wristScreenX: this.pendingVisual.wristScreenX,
+        wristScreenY: this.pendingVisual.wristScreenY
+      };
+      this.pendingVisual = null;
+      // Also discard any pending audio — it's the same physical dribble
+      this.pendingAudio = null;
+      this.lastEmitTime = timestamp;
+      return result;
     }
 
-    // Audio-only: wait a bit longer since audio alone is less reliable
+    // Audio-only: wait for the window, but suppress if a visual event
+    // was recently emitted (same dribble)
     if (this.pendingAudio && !this.pendingVisual) {
       const age = timestamp - this.pendingAudio.arrivalTime;
       if (age > this.maxWindow) {
+        // Suppress if too close to last emit
+        if (timestamp - this.lastEmitTime < cooldown) {
+          this.pendingAudio = null;
+          return { detected: false };
+        }
         const result = {
           detected: true,
           confidence: 0.35,
@@ -71,6 +90,7 @@ export class SensorFusion {
           wristScreenY: 0
         };
         this.pendingAudio = null;
+        this.lastEmitTime = timestamp;
         return result;
       }
     }

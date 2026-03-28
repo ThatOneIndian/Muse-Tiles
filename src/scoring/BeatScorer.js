@@ -1,6 +1,9 @@
+import { DIFFICULTY } from '../utils/constants.js';
+
 export class BeatScorer {
-  constructor(beatGrid) {
+  constructor(beatGrid, difficulty = 'normal') {
     this.beatGrid = beatGrid;
+    this.difficulty = difficulty;
     this.totalScore = 0;
     this.combo = 0;
     this.maxCombo = 0;
@@ -9,22 +12,27 @@ export class BeatScorer {
     this.totalDribbles = 0;
   }
 
+  setDifficulty(difficulty) {
+    this.difficulty = difficulty;
+  }
+
   scoreDribble(dribbleTimestamp) {
     this.totalDribbles++;
     const { beatTime, offsetMs } = this.beatGrid.getNearestBeat(dribbleTimestamp);
     const absOffset = Math.abs(offsetMs);
+    const d = DIFFICULTY[this.difficulty] || DIFFICULTY.normal;
 
     let result;
 
-    if (absOffset <= 80) {
+    if (absOffset <= d.perfectMs) {
       result = { rating: 'perfect', basePoints: 100 };
       this.combo++;
       this.hitCounts.perfect++;
-    } else if (absOffset <= 150) {
+    } else if (absOffset <= d.greatMs) {
       result = { rating: 'great', basePoints: 75 };
       this.combo++;
       this.hitCounts.great++;
-    } else if (absOffset <= 250) {
+    } else if (absOffset <= d.goodMs) {
       result = { rating: 'good', basePoints: 50 };
       this.combo++;
       this.hitCounts.good++;
