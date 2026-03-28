@@ -23,7 +23,7 @@ function meterToAngle(meter) {
 
 const LAYER_LABELS = ['DRUMS', 'BASS', 'SYNTH', 'LEAD'];
 
-export default function HUD({ score, bpm, combo, maxCombo, rating, energy, meter = 50, onQuit }) {
+export default function HUD({ score, bpm, combo, maxCombo, rating, energy, meter = 50, timeLeft = 0, onQuit }) {
   const zone = getZone(meter);
   const needleAngle = meterToAngle(meter);
   const isOnFire = meter >= 80;
@@ -71,6 +71,7 @@ export default function HUD({ score, bpm, combo, maxCombo, rating, energy, meter
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {[
+              { label: 'Time', value: `${Math.floor(timeLeft / 60)}:${String(timeLeft % 60).padStart(2, '0')}`, color: timeLeft <= 10 ? '#ff4444' : timeLeft <= 30 ? '#FFA500' : '#fff' },
               { label: 'Score', value: score.toLocaleString(), color: '#fff' },
               { label: 'BPM', value: bpm > 0 ? Math.round(bpm) : '--', color: 'var(--accent-color)' },
               { label: 'Combo', value: combo > 0 ? `${combo}x` : '--', color: combo > 10 ? '#FFD700' : '#fff' },
