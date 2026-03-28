@@ -1,6 +1,6 @@
 export class TrackGenerator {
   constructor(apiKey) {
-    this.apiKey = apiKey;
+    this.apiKey = apiKey || import.meta.env.VITE_GEMINI_API_KEY;
     this.lyriaEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/lyria:generateMusic?key='; // Placeholder endpoint based on typical Google API structure; will verify once API key is ready
   }
 
