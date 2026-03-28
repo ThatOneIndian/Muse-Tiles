@@ -1,17 +1,40 @@
 'use client';
 
+import { useState } from 'react';
 import { useMuseSession } from '../hooks/useMuseSession';
 import { ParameterTile } from '../components/ParameterTile';
-import { Music, Activity, Disc, Zap, Headphones, Mic } from 'lucide-react';
+import { Music, Activity, Disc, Zap, Headphones, Mic, Send } from 'lucide-react';
 import styles from './page.module.css';
 
 export default function Home() {
   const { parameters, isLoaded } = useMuseSession();
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState([
+    { role: 'ai', content: "Hey there! Let's get started. What kind of vibe are you aiming for today?" }
+  ]);
+  const [isSending, setIsSending] = useState(false);
 
   if (!isLoaded) return null; // Wait for Mount
 
   // This active query will later be managed by Gemini's state context
   const activeParameter: string = 'mood';
+
+  const handleSendMessage = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!input.trim() || isSending) return;
+
+    const userMsg = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    setIsSending(true);
+
+    // TODO: Connect to app/api/chat/route.ts (Developer A)
+    // For now, just a mock response
+    setTimeout(() => {
+      setMessages(prev => [...prev, { role: 'ai', content: "Got it! That sounds interesting. I'm updating your project dashboard now." }]);
+      setIsSending(false);
+    }, 1000);
+  };
 
   return (
     <main className={styles.main}>
@@ -24,18 +47,35 @@ export default function Home() {
           </div>
           
           <div className={styles.chatLog}>
-            {/* Developer B & A: Implement chat history here */}
-            <div className={styles.aiMessage}>
-              <Music className="text-neon-blue" size={20} />
-              <p>Hey there! Let's get started. What kind of vibe are you aiming for today?</p>
-            </div>
+            {messages.map((msg, i) => (
+              <div key={i} className={msg.role === 'ai' ? styles.aiMessage : styles.userMessage}>
+                {msg.role === 'ai' && <Music className="text-neon-blue" size={18} />}
+                <p>{msg.content}</p>
+              </div>
+            ))}
+            {isSending && (
+              <div className={styles.aiMessage}>
+                <div className={styles.typingIndicator}>...</div>
+              </div>
+            )}
           </div>
 
-          <div className={styles.chatInput}>
-            {/* Developer B & A: Implement Chat Input Here */}
-            <input type="text" placeholder="e.g. A chill, atmospheric Lo-fi vibe..." disabled />
-            <button className={styles.sendBtn} disabled>&rarr;</button>
-          </div>
+          <form onSubmit={handleSendMessage} className={styles.chatInput}>
+            <input 
+              type="text" 
+              placeholder="e.g. A chill, atmospheric Lo-fi vibe..." 
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              disabled={isSending}
+            />
+            <button 
+              type="submit" 
+              className={styles.sendBtn} 
+              disabled={isSending || !input.trim()}
+            >
+              <Send size={18} />
+            </button>
+          </form>
         </section>
 
         {/* Main Stage: Dynamic Tile Grid */}

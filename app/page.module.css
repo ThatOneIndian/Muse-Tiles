@@ -54,6 +54,33 @@
   line-height: 1.5;
 }
 
+.userMessage {
+  align-self: flex-end;
+  background: var(--surface-hover);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  max-width: 80%;
+}
+
+.userMessage p {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.typingIndicator {
+  color: var(--neon-blue);
+  font-weight: bold;
+  letter-spacing: 2px;
+  animation: typing-pulse 1.5s infinite;
+}
+
+@keyframes typing-pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
 .chatInput {
   padding: 1.5rem;
   border-top: 1px solid var(--border);
