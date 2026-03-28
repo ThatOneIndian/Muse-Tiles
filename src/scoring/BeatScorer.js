@@ -64,6 +64,10 @@ export class BeatScorer {
     };
   }
 
+  getPerformanceLevel() {
+    return this.combo;
+  }
+
   reset() {
     this.totalScore = 0;
     this.combo = 0;
