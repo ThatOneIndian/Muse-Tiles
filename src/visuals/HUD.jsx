@@ -4,8 +4,8 @@ export default function HUD({ score, bpm, combo, maxCombo, rating, energy }) {
   // Add a quick animation trigger class based on rating
   
   return (
-    <div className="active-session" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', zIndex: 10 }}>
+    <div className="active-session" style={{ display: 'flex', flexDirection: 'column', position: 'absolute', top: 0, left: 0, right: 0, padding: '2rem', zIndex: 10, pointerEvents: 'none' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
          <div className="glass-panel" style={{ padding: '1rem 2rem' }}>
             <h3 style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Score</h3>
             <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>{score.toLocaleString()}</div>
@@ -33,7 +33,7 @@ export default function HUD({ score, bpm, combo, maxCombo, rating, energy }) {
             <div style={{ width: '100px', height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
               <div style={{ width: `${(energy/10)*100}%`, height: '100%', background: 'var(--accent-color)' }}></div>
             </div>
-            <span style={{ fontWeight: 600 }}>{energy}/10</span>
+            <span style={{ fontWeight: 600, minWidth: '40px' }}>{energy}/10</span>
         </div>
       </div>
       

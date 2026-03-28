@@ -1,14 +1,13 @@
 export class TrackGenerator {
   constructor(apiKey) {
     this.apiKey = apiKey;
-    this.lyriaEndpoint = 'https://generativelanguage.googleapis.com/v1beta/models/lyria:generateMusic?key='; // Placeholder endpoint based on typical Google API structure; will verify once API key is ready
+    // Hitting the newly announced Lyria preview model
+    this.lyriaEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/lyria-3-pro-preview:generateContent?key=${apiKey}`;
   }
 
   buildLyriaPrompt(config, targetBPM) {
     const parts = [];
-    
-    parts.push(`${config.genre} instrumental track`);
-    
+    parts.push(`Generate audio: ${config.genre} instrumental track`);
     if (config.energy >= 7) parts.push('high energy, driving rhythm');
     else if (config.energy >= 4) parts.push('moderate energy, steady groove');
     else parts.push('low energy, ambient, atmospheric');
@@ -21,39 +20,64 @@ export class TrackGenerator {
     }
     
     parts.push('suitable for rhythmic physical activity');
-    parts.push('strong clear beat for timing');
-    
+    parts.push('strong clear loopable beat');
+    parts.push('highly melodic with complex instrumental layers, distinct piano and synth leads');
     return parts.join(', ');
   }
 
   async generateTrack(bpm, config) {
-    // Lyria implementation awaiting actual API confirmation and key
-    console.log(`[Lyria Mock] Generating ${bpm} BPM track with prompt:`, this.buildLyriaPrompt(config, bpm));
+    const prompt = this.buildLyriaPrompt(config, bpm);
+    console.log(`[Lyria] Generating ${bpm} BPM track:`, prompt);
     
     if (!this.apiKey) {
-       console.warn("No Lyria API key provided. Falling back to mocked generation.");
-       return this.mockGeneration(bpm);
+       throw new Error("No API key provided. Cannot generate Lyria audio.");
     }
     
     try {
-      // TBD: Actual Lyria Fetch based on hackathon docs
-      // For now, return the mocked response to prevent breaking until user provides API key
-      return this.mockGeneration(bpm);
+      const response = await fetch(this.lyriaEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+              responseModalities: ["AUDIO", "TEXT"]
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Lyria API rejected the request (${response.status}): ${errText}`);
+      }
+
+      const data = await response.json();
+      console.log("Lyria Generation Complete!");
+      
+      const parts = data?.candidates?.[0]?.content?.parts || [];
+      const audioPart = parts.find(p => p.inlineData && p.inlineData.mimeType.startsWith('audio/'));
+      
+      if (!audioPart) {
+          throw new Error("Lyria returned a successful response, but the parts array contained no Audio binary. Did you select the right response Modality?");
+      }
+      
+      return this._createBlobUrlFromBase64(audioPart.inlineData.data, audioPart.inlineData.mimeType);
+      
     } catch (e) {
-      console.error("Lyria generation failed", e);
-      return null;
+      console.error("Lyria generation failed entirely", e);
+      throw e;
     }
   }
 
-  /**
-   * Temporary mock generator returning a synth beat for local testing
-   */
-  async mockGeneration(bpm) {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-          // Returning null implies the engine should fallback to local synth/tone.js backing
-          resolve(null);
-        }, 1500);
-    });
+  _createBlobUrlFromBase64(base64, mimeType) {
+    const binary = atob(base64);
+    const array = new Uint8Array(binary.length);
+    for( let i = 0; i < binary.length; i++ ) { array[i] = binary.charCodeAt(i); }
+    const blob = new Blob([array], { type: mimeType });
+    return URL.createObjectURL(blob);
+  }
+
+  async generateSoundEffect(type) {
+    // Skipping custom Lyria SFX for time, maintaining tone.js SFX synth we just built natively
+    return null;
   }
 }
